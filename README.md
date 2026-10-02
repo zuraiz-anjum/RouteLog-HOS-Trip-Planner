@@ -1,22 +1,62 @@
-# RouteLog: HOS Trip Planner and ELD Log Generator
+# RouteLog
 
-[![CI](https://github.com/zuraiz-anjum/Full-stack-Assesment/actions/workflows/ci.yml/badge.svg)](https://github.com/zuraiz-anjum/Full-stack-Assesment/actions/workflows/ci.yml)
+**Plan a truck trip and get FMCSA-compliant daily log sheets back in one step.**
 
-Takes a trip (current location, pickup, drop-off, and how many hours are already
-used in the driver's 70-hour/8-day cycle) and produces a driving route plus a
-full set of FMCSA daily log sheets, laid out to match the real paper form field
-for field. Every required rest break, 30-minute break, 10-hour reset, 34-hour
-restart, and fuel stop gets worked out automatically and shown on the log grid,
-not approximated after the fact.
+[![CI](https://github.com/zuraiz-anjum/RouteLog-HOS-Trip-Planner/actions/workflows/ci.yml/badge.svg)](https://github.com/zuraiz-anjum/RouteLog-HOS-Trip-Planner/actions/workflows/ci.yml)
+![Tests](https://img.shields.io/badge/tests-142%20passing-brightgreen)
+![Django](https://img.shields.io/badge/Django-REST-092E20?logo=django)
+![React](https://img.shields.io/badge/React-Vite-61DAFB?logo=react&logoColor=black)
 
-**Live app:** https://full-stack-assesment-smoky.vercel.app
-**API:** https://full-stack-assesment-production.up.railway.app/api
+![RouteLog demo](docs/demo.gif)
+<!-- Record docs/demo.gif: enter a trip, generate, scroll through the log sheets. docs/screenshot.png is a still of the app. -->
 
-## Screenshots
+## What it does
 
-| Route + summary | Daily log sheet | Mobile |
-|---|---|---|
-| ![Trip overview](docs/screenshots/desktop-overview.jpg) | ![Daily log grid](docs/screenshots/desktop-daily-log.png) | ![Mobile form](docs/screenshots/mobile-form.png) |
+A dispatcher or driver enters where the truck is, where the load gets picked up,
+where it gets dropped off, and how many hours are already used in the 70-hour/8-day
+cycle. RouteLog pulls a real heavy-vehicle route, runs a full hours-of-service
+simulation over it (11-hour driving limit, 14-hour window, 30-minute break, 10-hour
+resets, 34-hour restarts, fuel stops) and draws the result onto daily log sheets laid
+out like the paper form. The logs come out of the simulation, they are not sketched
+in after the fact, and each trip can be shared by link or downloaded as a PDF.
+
+## By the numbers
+
+| | |
+|---|---|
+| Automated tests | 142 passing, 0 failing (102 backend, 40 frontend) |
+| CI | GitHub Actions: backend tests, frontend lint, tests and build on every push |
+| API endpoints | 6 (trips, trip detail, PDF, shared trip, shared PDF, location autocomplete) |
+| Code size | about 2,650 lines of Python and 3,460 lines of JS/JSX (non-blank, excluding migrations) |
+| Frontend bundle | 312 kB JS, 98 kB gzipped |
+
+## Architecture at a glance
+
+React and Vite talk to a Django REST API backed by PostgreSQL.
+The API geocodes and routes through OpenRouteService, then hands the route to a pure
+Python HOS engine that produces a minute-by-minute duty timeline. The frontend renders
+that timeline as the log grid and the PDF uses the same data, so what you see on screen
+and what you print never disagree. Trips are tied to an anonymous owner token, with a
+separate share token for read-only links. More detail in [Architecture](#architecture)
+and [How it works](#how-it-works) below.
+
+## Quick start
+
+```bash
+# backend
+cd backend
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+export DEBUG=True ORS_API_KEY=your_openrouteservice_key
+python manage.py migrate && python manage.py runserver
+
+# frontend, in a second terminal
+cd frontend
+npm ci && npm run dev
+```
+
+Run the tests with `DEBUG=True python manage.py test trips` in `backend` and
+`npm run test` in `frontend`. Full setup notes are in [Running locally](#running-locally).
 
 ## Features
 
@@ -98,7 +138,7 @@ flowchart LR
 - **Frontend:** React (Vite) + Tailwind CSS, react-leaflet for the map
 - **Routing/geocoding:** OpenRouteService (HGV driving profile, US-only)
 - **PDF generation:** reportlab
-- **Hosting:** Railway (backend + Postgres), Vercel (frontend)
+- **Deployment:** configured for Railway (backend + Postgres) and Vercel (frontend); runs locally with the quick start below
 - **CI:** GitHub Actions (backend + frontend test suites, lint, build)
 
 ## How it works
